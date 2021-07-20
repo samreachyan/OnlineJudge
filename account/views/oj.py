@@ -1,3 +1,4 @@
+from logging import error
 import os
 import time
 import datetime
@@ -181,6 +182,8 @@ class UserLoginAPI(APIView):
             else:
                 return self.error("Invalid two factor verification code")
         else:
+            if ('@' in data['username']):
+                return self.error("Don't use email to login, use your username")
             return self.error("Invalid username or password")
 
 
@@ -232,6 +235,20 @@ class UserRegisterAPI(APIView):
         user.set_password(data["password"])
         user.save()
         UserProfile.objects.create(user=user)
+        render_data = {
+            "username": user.username,
+            "email": user.email,
+            "link": f"{SysOptions.website_base_url}/problem",
+            "website_name": SysOptions.website_name,
+            "website_name_shortcut": SysOptions.website_name_shortcut,
+        }
+        # send email to user registered
+        email_html = render_to_string("register_account.html", render_data)
+        send_email_async.send(from_name=SysOptions.website_name_shortcut,
+                              to_name=user.username,
+                              to_email=user.email,
+                              subject="Successful registration",
+                              content=email_html)
         return self.success("Succeeded")
 
 
