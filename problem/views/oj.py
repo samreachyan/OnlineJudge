@@ -9,7 +9,12 @@ from contest.models import ContestRuleType
 
 class ProblemTagAPI(APIView):
     def get(self, request):
-        tags = ProblemTag.objects.annotate(problem_count=Count("problem")).filter(problem_count__gt=0)
+        # tags = ProblemTag.objects.annotate(problem_count=Count("problem")).filter(problem_count__gt=0)
+        qs = ProblemTag.objects
+        keyword = request.GET.get("keyword")
+        if keyword:
+            qs = ProblemTag.objects.filter(name__icontains=keyword)
+        tags = qs.annotate(problem_count=Count("problem")).filter(problem_count__gt=0)
         return self.success(TagSerializer(tags, many=True).data)
 
 
@@ -73,6 +78,14 @@ class ProblemAPI(APIView):
         difficulty = request.GET.get("difficulty")
         if difficulty:
             problems = problems.filter(difficulty=difficulty)
+        # add ac_rate
+        for i in range(len(problems)):
+            problems[i].ac_rate = 0.00 if problems[i].submission_number == 0  else (problems[i].accepted_number / problems[i].submission_number * 100)
+        # sorting
+        sort_key = request.GET.get('sort_key')
+        sort_type = request.GET.get('sort_type')
+        if sort_key and sort_type and sort_type != 'normal':
+            problems = sorted(problems, key=lambda k: k[sort_key], reverse=(sort_type == 'desc'))
         # 根据profile 为做过的题目添加标记
         data = self.paginate_data(request, problems, ProblemSerializer)
         self._add_problem_status(request, data)
